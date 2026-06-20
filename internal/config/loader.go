@@ -232,6 +232,10 @@ func validate(cfg *Config) error {
 		return err
 	}
 
+	if err := validateSingleAPIKey(cfg.APIKey); err != nil {
+		return err
+	}
+
 	if err := validateModelOverrides(cfg.ModelOverrides); err != nil {
 		return err
 	}
@@ -240,6 +244,25 @@ func validate(cfg *Config) error {
 		return err
 	}
 
+	if err := validateVisionModels(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateVisionModels checks that when a vision scenario is configured,
+// the primary model supports vision. Vision scenarios are optional —
+// only validate them when they appear in the models map.
+func validateVisionModels(cfg *Config) error {
+	for _, scenario := range []string{"vision", "vision_complex", "vision_long_context"} {
+		if model, ok := cfg.Models[scenario]; ok && !model.Vision {
+			resolved := ResolveModelConfig(model)
+			if !resolved.Vision {
+				return fmt.Errorf("models[%q] does not support vision but is configured for vision scenario", scenario)
+			}
+		}
+	}
 	return nil
 }
 
@@ -268,6 +291,16 @@ func validateAnthropicToolsDisabled(cfg *Config) error {
 // validateAPIKeys ensures no api_keys entries contain unresolved ${VAR} placeholders.
 // Unresolved placeholders indicate the user did not set the corresponding env vars,
 // and the literal placeholder string would be sent as a bearer token.
+func validateSingleAPIKey(key string) error {
+	if key == "" {
+		return nil
+	}
+	if envVarPattern.MatchString(key) {
+		return fmt.Errorf("api_key contains unresolved env var %q — set the corresponding environment variable or use api_keys", key)
+	}
+	return nil
+}
+
 func validateAPIKeys(keys []string) error {
 	for i, key := range keys {
 		if key == "" {

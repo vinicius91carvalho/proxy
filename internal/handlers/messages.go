@@ -3,6 +3,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -141,8 +143,12 @@ func (h *MessagesHandler) HandleMessages(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Generate or get request ID for correlation
+	// Generate or get request ID for correlation.
+	// Cap externally-provided IDs at 256 bytes to prevent header abuse.
 	requestID := r.Header.Get("X-Request-ID")
+	if len(requestID) > 256 {
+		requestID = requestID[:256]
+	}
 	if requestID == "" {
 		requestID = h.requestIDGen.Generate()
 	}
@@ -215,13 +221,16 @@ func (h *MessagesHandler) HandleMessages(w http.ResponseWriter, r *http.Request)
 		blocks := msg.ContentBlocks()
 		content := extractTextFromBlocks(blocks)
 		mc := router.MessageContent{
-			Role:    msg.Role,
-			Content: content,
+			Role:        msg.Role,
+			Content:     content,
+			HasImage:    blocksHaveImage(blocks),
+			ImageHashes: imageHashesFromBlocks(blocks),
 		}
 		routerMessages = append(routerMessages, mc)
 		tokenMessages = append(tokenMessages, token.MessageContent{
-			Role:    msg.Role,
-			Content: content,
+			Role:        msg.Role,
+			Content:     content,
+			ExtraTokens: imageTokenEstimate(blocks),
 		})
 	}
 
@@ -233,7 +242,9 @@ func (h *MessagesHandler) HandleMessages(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Route to appropriate model and build fallback chain.
-	modelChain, routeResult, err := h.buildModelChain(anthropicReq.Model, routerMessages, tokenCount, isStreaming)
+	facts := router.AnalyzeRequestFacts(routerMessages)
+	needsTools := len(anthropicReq.Tools) > 0
+	modelChain, routeResult, err := h.buildModelChain(anthropicReq.Model, routerMessages, tokenCount, isStreaming, anthropicReq.MaxTokens, facts.NeedsVision, needsTools)
 	if err != nil {
 		h.sendError(w, http.StatusInternalServerError, "routing failed", err)
 		return
@@ -269,25 +280,43 @@ func (h *MessagesHandler) buildModelChain(
 	routerMessages []router.MessageContent,
 	tokenCount int,
 	isStreaming bool,
+	requestedMaxTokens int,
+	needsVision bool,
+	needsTools bool,
 ) ([]config.ModelConfig, router.RouteResult, error) {
+	var chain []config.ModelConfig
+	var result router.RouteResult
+
 	if requestedModel != "" {
 		if overrideResult, ok := h.modelRouter.RouteWithOverride(requestedModel); ok {
 			scenarioResult, err := h.routeOnce(routerMessages, tokenCount, "", isStreaming)
 			if err != nil {
-				// Override is valid; surface the scenario routing error rather
-				// than silently dropping the safety net.
 				return overrideResult.GetModelChain(), overrideResult, err
 			}
-			chain := appendUniqueModels(overrideResult.GetModelChain(), scenarioResult.GetModelChain())
-			return chain, overrideResult, nil
+			chain = appendUniqueModels(overrideResult.GetModelChain(), scenarioResult.GetModelChain())
+			result = overrideResult
 		}
 	}
 
-	result, err := h.routeOnce(routerMessages, tokenCount, requestedModel, isStreaming)
+	if chain == nil {
+		var err error
+		result, err = h.routeOnce(routerMessages, tokenCount, requestedModel, isStreaming)
+		if err != nil {
+			return nil, result, err
+		}
+		chain = result.GetModelChain()
+	}
+
+	decision, err := router.FilterByCapacity(chain, tokenCount, requestedMaxTokens, needsVision, needsTools)
 	if err != nil {
 		return nil, result, err
 	}
-	return result.GetModelChain(), result, nil
+
+	for _, s := range decision.Skipped {
+		h.logger.Info("model skipped by capacity filter", "model", s.ModelID, "reason", s.Reason)
+	}
+
+	return decision.Models, result, nil
 }
 
 // routeOnce performs scenario-based routing, honoring the streaming-scenario-routing
@@ -1057,6 +1086,28 @@ func extractTextFromBlocks(blocks []types.ContentBlock) string {
 		}
 	}
 	return content
+}
+
+func blocksHaveImage(blocks []types.ContentBlock) bool {
+	for _, block := range blocks {
+		if block.Type == "image" && block.Source != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func imageHashesFromBlocks(blocks []types.ContentBlock) []string {
+	var hashes []string
+	for _, block := range blocks {
+		if block.Type != "image" || block.Source == nil {
+			continue
+		}
+		source := block.Source.Type + "\x00" + block.Source.MediaType + "\x00" + block.Source.Data + "\x00" + block.Source.URL
+		sum := sha256.Sum256([]byte(source))
+		hashes = append(hashes, hex.EncodeToString(sum[:]))
+	}
+	return hashes
 }
 
 // sendError sends an error response in Anthropic format.
