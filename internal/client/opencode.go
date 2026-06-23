@@ -13,8 +13,34 @@ import (
 	"time"
 
 	"github.com/routatic/proxy/internal/config"
+	"github.com/routatic/proxy/internal/debug"
 	"github.com/routatic/proxy/pkg/types"
 )
+
+// extractRequestID converts a context value to a string request ID.
+func extractRequestID(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch s := v.(type) {
+	case string:
+		return s
+	case []byte:
+		return string(s)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// teeReadCloser wraps an io.ReadCloser with a TeeReader for capturing response data.
+type teeReadCloser struct {
+	io.ReadCloser
+	r io.Reader
+}
+
+func (t *teeReadCloser) Read(p []byte) (n int, err error) {
+	return t.r.Read(p)
+}
 
 const (
 	ProviderOpenCodeGo  = "opencode-go"
@@ -36,9 +62,10 @@ func (e *APIError) Error() string {
 
 // OpenCodeClient handles communication with OpenCode Go and Zen APIs.
 type OpenCodeClient struct {
-	atomic     *config.AtomicConfig
-	httpClient *http.Client
-	keyCounter atomic.Uint64
+	atomic        *config.AtomicConfig
+	httpClient    *http.Client
+	keyCounter    atomic.Uint64
+	captureLogger *debug.CaptureLogger
 }
 
 // nextAPIKey returns the next API key in round-robin order from the given key pool.
@@ -54,7 +81,7 @@ func (c *OpenCodeClient) nextAPIKey(keys []string) string {
 }
 
 // NewOpenCodeClient creates a new OpenCode client.
-func NewOpenCodeClient(atomic *config.AtomicConfig) *OpenCodeClient {
+func NewOpenCodeClient(atomic *config.AtomicConfig, captureLogger *debug.CaptureLogger) *OpenCodeClient {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -69,6 +96,7 @@ func NewOpenCodeClient(atomic *config.AtomicConfig) *OpenCodeClient {
 		httpClient: &http.Client{
 			Transport: transport,
 		},
+		captureLogger: captureLogger,
 	}
 }
 
@@ -301,6 +329,11 @@ func (c *OpenCodeClient) ChatCompletion(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// Capture upstream request before sending
+	if c.captureLogger != nil {
+		c.captureLogger.CaptureUpstreamRequest(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), body)
+	}
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.BaseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -327,6 +360,17 @@ func (c *OpenCodeClient) ChatCompletion(
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+	}
+
+	// Capture upstream response by wrapping the body with a TeeReader
+	if c.captureLogger != nil {
+		pr, pw := io.Pipe()
+		resp.Body = &teeReadCloser{ReadCloser: resp.Body, r: io.TeeReader(resp.Body, pw)}
+		// Async copy to capture
+		go func() {
+			data, _ := io.ReadAll(pr)
+			c.captureLogger.CaptureUpstreamResponse(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), data)
+		}()
 	}
 
 	return resp, nil
@@ -437,6 +481,11 @@ func (c *OpenCodeClient) ResponsesCompletion(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// Capture upstream request before sending
+	if c.captureLogger != nil {
+		c.captureLogger.CaptureUpstreamRequest(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), body)
+	}
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.BaseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -454,6 +503,17 @@ func (c *OpenCodeClient) ResponsesCompletion(
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+	}
+
+	// Capture upstream response by wrapping the body with a TeeReader
+	if c.captureLogger != nil {
+		pr, pw := io.Pipe()
+		resp.Body = &teeReadCloser{ReadCloser: resp.Body, r: io.TeeReader(resp.Body, pw)}
+		// Async copy to capture
+		go func() {
+			data, _ := io.ReadAll(pr)
+			c.captureLogger.CaptureUpstreamResponse(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), data)
+		}()
 	}
 
 	return resp, nil
@@ -518,6 +578,11 @@ func (c *OpenCodeClient) GeminiCompletion(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// Capture upstream request before sending
+	if c.captureLogger != nil {
+		c.captureLogger.CaptureUpstreamRequest(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), body)
+	}
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.BaseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -535,6 +600,17 @@ func (c *OpenCodeClient) GeminiCompletion(
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(bodyBytes)}
+	}
+
+	// Capture upstream response by wrapping the body with a TeeReader
+	if c.captureLogger != nil {
+		pr, pw := io.Pipe()
+		resp.Body = &teeReadCloser{ReadCloser: resp.Body, r: io.TeeReader(resp.Body, pw)}
+		// Async copy to capture
+		go func() {
+			data, _ := io.ReadAll(pr)
+			c.captureLogger.CaptureUpstreamResponse(extractRequestID(ctx.Value("requestID")), Provider(modelConfig), data)
+		}()
 	}
 
 	return resp, nil
