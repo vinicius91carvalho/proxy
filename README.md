@@ -6,6 +6,31 @@ A Go CLI proxy that lets you route [Claude Code](https://docs.anthropic.com/en/d
 
 `oc-go-cc` remains available as a compatibility alias, and existing `OC_GO_CC_*` environment variables and `~/.config/oc-go-cc/config.json` files are still recognized.
 
+---
+
+## ✨ macOS GUI Version / macOS GUI 图形界面版
+
+This fork repository provides a native macOS GUI (System Tray + Console Dashboard) for `routatic-proxy`.
+本 Fork 仓库为 `routatic-proxy` 额外提供了 macOS 原生图形界面支持（系统托盘 + 内嵌控制台面板）。
+
+### Features / 功能特点
+- **System Tray Icon (系统托盘)** — Control the proxy server directly from the macOS status bar (Start, Stop, Autostart, Quit).
+  **系统托盘图标** — 直接在 macOS 顶部状态栏中快捷控制代理服务的启动、停止、开机自启和退出。
+- **Interactive Dashboard (内嵌控制台)** — A beautiful native console window to view real-time request history, model usage metrics, and easily edit/save your API keys without editing JSON files.
+  **交互式控制台** — 原生窗口控制台，支持查看实时历史请求、模型调用分布，并且无需手动编辑 JSON 配置文件，即可直接在界面中修改和保存 API Key。
+- **App DMG Installer (DMG 一键安装)** — Package into a standard macOS app with custom icons and launch support.
+  **DMG 一键安装包** — 提供标准的 macOS 应用程序打包，带有关机自启与双击运行托盘支持。
+
+### How to Run / 如何运行
+You can download the compiled `.dmg` from the **Releases** page of this repository, or run the following command directly:
+您可以直接在此仓库的 **Releases** 页面下载编译好的 `.dmg` 安装包，或者在终端运行以下命令启动：
+```bash
+# Launch with native macOS GUI
+routatic-proxy ui
+```
+
+---
+
 ## Why?
 
 OpenCode Go gives you access to powerful open coding models for **$5/month** (then $10/month). OpenCode Zen provides curated, tested models with pay-as-you-go pricing. AWS Bedrock lets you run models on your own AWS infrastructure. This proxy makes all three work seamlessly with Claude Code's interface — no patches, no forks, just set two environment variables and go.

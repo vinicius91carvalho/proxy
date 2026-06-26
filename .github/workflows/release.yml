@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -215,6 +217,34 @@ jobs:
           files: |
             dist/routatic-proxy_*
             dist/checksums.txt
+
+  # ── Stage 2.5: Build macOS DMG ──────────────────────────────────
+  release-macos:
+    name: Build & Release macOS DMG
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build macOS DMG
+        env:
+          VERSION: ${{ needs.release.outputs.tag }}
+        run: |
+          make dmg VERSION=${{ env.VERSION }}
+
+      - name: Upload DMG to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.tag }}
+          files: bin/RoutaticProxy.dmg
 
   # ── Stage 3: Publish Docker Image ───────────────────────────────
   docker:
