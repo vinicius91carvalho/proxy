@@ -85,18 +85,14 @@ jobs:
 
           LDFLAGS="-X main.version=${VERSION}"
 
-          # Define target platforms
-          declare -A TARGETS=(
-            ["darwin-amd64"]="darwin/amd64"
-            ["darwin-arm64"]="darwin/arm64"
-            ["linux-amd64"]="linux/amd64"
-            ["linux-arm64"]="linux/arm64"
-            ["windows-amd64"]="windows/amd64"
-            ["windows-arm64"]="windows/arm64"
-          )
+          # Define target platforms (bash 3 compatible — macOS default)
+          TARGETS="darwin-amd64:darwin/amd64 darwin-arm64:darwin/arm64 linux-amd64:linux/amd64 linux-arm64:linux/arm64 windows-amd64:windows/amd64 windows-arm64:windows/arm64"
 
-          for NAME in "${!TARGETS[@]}"; do
-            IFS='/' read -r GOOS GOARCH <<< "${TARGETS[$NAME]}"
+          for TARGET in $TARGETS; do
+            NAME="${TARGET%%:*}"
+            PAIR="${TARGET##*:}"
+            GOOS="${PAIR%/*}"
+            GOARCH="${PAIR#*/}"
             EXT=""
             [ "$GOOS" = "windows" ] && EXT=".exe"
 
