@@ -10,6 +10,12 @@ A Go CLI proxy that lets you route [Claude Code](https://docs.anthropic.com/en/d
 
 `oc-go-cc` remains available as a compatibility alias, and existing `OC_GO_CC_*` environment variables and `~/.config/oc-go-cc/config.json` files are still recognized.
 
+## Differences from the original project
+
+This fork extends [routatic/proxy](https://github.com/routatic/proxy) with an opt-in Anthropic-first mode for Claude Code subscriptions. Anthropic remains the primary API; OpenCode takes over during rate limits, outages, or connection failures and automatically yields back after recovery.
+
+It also ships a cost-aware OpenCode profile using GLM-5.2 for planning, DeepSeek V4 Pro/Flash for general and fast work, MiniMax M3 for long context, Qwen3.7 fallbacks, and live-verified Zen-free fallbacks when OpenCode Go usage is exhausted.
+
 ---
 
 ## macOS GUI Version
