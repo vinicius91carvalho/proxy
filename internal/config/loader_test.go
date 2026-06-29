@@ -64,6 +64,28 @@ func TestLoadJSON(t *testing.T) {
 	}
 }
 
+func TestAnthropicFirstDefaultsAndValidation(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfgPath, []byte(`{"api_key":"test-key","anthropic_first":{"enabled":true}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.AnthropicFirst.Enabled || cfg.AnthropicFirst.BaseURL != "https://api.anthropic.com" {
+		t.Fatalf("AnthropicFirst=%+v", cfg.AnthropicFirst)
+	}
+
+	if err := os.WriteFile(cfgPath, []byte(`{"api_key":"test-key","anthropic_first":{"enabled":true,"base_url":"not-a-url"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFromPath(cfgPath); err == nil {
+		t.Fatal("expected invalid anthropic_first.base_url to fail validation")
+	}
+}
+
 func TestLoadJSON_WithModelOverrides(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")

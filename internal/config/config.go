@@ -18,8 +18,15 @@ type Config struct {
 	AWSBedrock                     AWSBedrockConfig         `json:"aws_bedrock"`
 	OpenCodeGo                     OpenCodeGoConfig         `json:"opencode_go"`
 	OpenCodeZen                    OpenCodeZenConfig        `json:"opencode_zen"`
+	AnthropicFirst                 AnthropicFirstConfig     `json:"anthropic_first"`
 	Logging                        LoggingConfig            `json:"logging"`
 	Debug                          DebugConfig              `json:"debug"`
+}
+
+// AnthropicFirstConfig controls direct Anthropic passthrough with OpenCode fallback.
+type AnthropicFirstConfig struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
 }
 
 // DebugConfig holds debug-related configuration.

@@ -5,29 +5,32 @@
   "hot_reload": false,
   "enable_streaming_scenario_routing": false,
   "respect_requested_model": false,
+  "anthropic_first": {
+    "enabled": false,
+    "base_url": "https://api.anthropic.com"
+  },
 
   "models": {
     "background": {
       "provider": "opencode-go",
-      "model_id": "qwen3.5-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.5,
-      "max_tokens": 2048,
-      "vision": true
+      "max_tokens": 2048
     },
     "default": {
       "provider": "opencode-go",
-      "model_id": "kimi-k2.6",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096,
-      "vision": true
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "long_context": {
       "provider": "opencode-go",
-      "model_id": "minimax-m2.5",
+      "model_id": "minimax-m3",
       "temperature": 0.7,
       "max_tokens": 16384,
-      "context_threshold": 80000,
-      "vision": true
+      "context_threshold": 80000
     },
     "deepseek-v4-pro": {
       "provider": "opencode-go",
@@ -51,17 +54,17 @@
     },
     "think": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "glm-5.2",
       "temperature": 0.7,
-      "max_tokens": 8192,
-      "vision": true
+      "max_tokens": 8192
     },
     "complex": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096,
-      "vision": true
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "glm-5.2": {
       "provider": "opencode-go",
@@ -93,37 +96,54 @@
     },
     "fast": {
       "provider": "opencode-go",
-      "model_id": "qwen3.6-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.7,
-      "max_tokens": 4096,
-      "vision": true
+      "max_tokens": 4096
     }
   },
 
   "fallbacks": {
     "background": [
-      { "provider": "opencode-go", "model_id": "qwen3.6-plus" },
-      { "provider": "opencode-go", "model_id": "minimax-m2.5" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "default": [
-      { "provider": "opencode-go", "model_id": "mimo-v2.5-pro" },
-      { "provider": "opencode-go", "model_id": "qwen3.6-plus" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "long_context": [
-      { "provider": "opencode-go", "model_id": "minimax-m2.7" },
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "think": [
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" },
-      { "provider": "opencode-go", "model_id": "mimo-v2.5-pro" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "complex": [
-      { "provider": "opencode-go", "model_id": "glm-5" },
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "fast": [
-      { "provider": "opencode-go", "model_id": "qwen3.5-plus" },
-      { "provider": "opencode-go", "model_id": "minimax-m2.5" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "glm-5.2": [
       { "provider": "opencode-go", "model_id": "glm-5.1" },

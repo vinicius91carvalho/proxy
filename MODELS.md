@@ -93,7 +93,7 @@ All OpenCode Go models are also available on Zen. Zen additionally offers:
 - **Claude Models (Anthropic endpoint):** claude-fable-5, claude-opus-4-8, claude-opus-4-7, claude-opus-4-6, claude-opus-4-5, claude-opus-4-1, claude-sonnet-4-6, claude-sonnet-4-5, claude-sonnet-4, claude-haiku-4-5, claude-3-5-haiku
 - **GPT Models (Responses endpoint):** gpt-5.5, gpt-5.5-pro, gpt-5.4, gpt-5.4-pro, gpt-5.4-mini, gpt-5.4-nano, gpt-5.3-codex, gpt-5.3-codex-spark, gpt-5.2, gpt-5.2-codex, gpt-5.1, gpt-5.1-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini, gpt-5, gpt-5-codex, gpt-5-nano
 - **Gemini Models (Gemini endpoint):** gemini-3.5-flash, gemini-3.1-pro, gemini-3-flash
-- **Free Tier (chat completions):** deepseek-v4-pro, deepseek-v4-flash-free, grok-build-0.1, big-pickle, mimo-v2.5-free, north-mini-code-free, nemotron-3-ultra-free
+- **Free Tier (chat completions):** deepseek-v4-flash-free, big-pickle, mimo-v2.5-free, north-mini-code-free, nemotron-3-ultra-free
 
 #### Deprecated Zen Models
 
@@ -117,7 +117,7 @@ The following models are deprecated and will be removed:
 | Claude Haiku 3.5 | Feb 16, 2026 | Claude Haiku 4.5 |
 | Qwen3 Coder 480B | Feb 6, 2026 | Qwen3.7 Plus/Max |
 
-DeepSeek V4 Pro and Flash are OpenAI-compatible on both Go and Zen providers. On Zen, DeepSeek V4 Pro is available as a free-tier model. routatic-proxy transforms Claude Code's Anthropic request into OpenAI Chat Completions format, including tools, tool results, thinking history, `reasoning_effort`, and `thinking`.
+DeepSeek V4 Pro and Flash are OpenAI-compatible on both Go and Zen providers. DeepSeek V4 Flash Free is the free Zen variant. routatic-proxy transforms Claude Code's Anthropic request into OpenAI Chat Completions format, including tools, tool results, thinking history, `reasoning_effort`, and `thinking`.
 
 For Claude Code and OpenCode-style agent workflows, DeepSeek V4 supports max thinking mode with:
 
@@ -568,7 +568,7 @@ Critical review → GLM-5.1 (rarely)
 2. **Reserve GLM-5.1 for critical tasks only** — 880 req/$12 drains budget fast
 3. **Use Qwen3.5 Plus for simple operations** — 10,200 req/$12 is unbeatable
 4. **MiniMax M2.5 for long context** — 6,300 req/$12 with 1M context is amazing value
-5. **Use Zen free-tier models** for non-critical tasks — deepseek-v4-pro, grok-build-0.1, big-pickle, and others cost $0
+5. **Use Zen free-tier models** for non-critical tasks — Nemotron 3 Ultra Free, MiMo V2.5 Free, DeepSeek V4 Flash Free, Big Pickle, and others cost $0 while their promotions remain active
 6. **Monitor your usage** in the [OpenCode console](https://opencode.ai/auth)
 
 ## See Also

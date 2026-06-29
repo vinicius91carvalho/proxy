@@ -173,11 +173,20 @@ func serveCmd() *cobra.Command {
 
 			fmt.Printf("Starting %s v%s\n", appName, version)
 			fmt.Printf("Listening on %s:%d\n", cfg.Host, cfg.Port)
-			fmt.Printf("Forwarding to: %s\n", cfg.OpenCodeGo.BaseURL)
+			if cfg.AnthropicFirst.Enabled {
+				fmt.Printf("Forwarding to Anthropic first: %s\n", cfg.AnthropicFirst.BaseURL)
+				fmt.Printf("OpenCode fallback: %s\n", cfg.OpenCodeGo.BaseURL)
+			} else {
+				fmt.Printf("Forwarding to: %s\n", cfg.OpenCodeGo.BaseURL)
+			}
 			fmt.Println()
 			fmt.Println("Configure Claude Code with:")
 			fmt.Printf("  export ANTHROPIC_BASE_URL=http://%s:%d\n", cfg.Host, cfg.Port)
-			fmt.Println("  export ANTHROPIC_AUTH_TOKEN=unused")
+			if cfg.AnthropicFirst.Enabled {
+				fmt.Println("  unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY")
+			} else {
+				fmt.Println("  export ANTHROPIC_AUTH_TOKEN=unused")
+			}
 			fmt.Println()
 
 			return srv.Start()
@@ -336,7 +345,7 @@ func checkCmd() *cobra.Command {
 					env[key] = value
 				}
 			}
-			conflicts += checkClaudeEnv("environment", env, expectedURL)
+			conflicts += checkClaudeEnv("environment", env, expectedURL, cfg.AnthropicFirst.Enabled)
 
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -361,7 +370,7 @@ func checkCmd() *cobra.Command {
 						fmt.Printf("%s: %v\n", path, err)
 						continue
 					}
-					conflicts += checkClaudeEnv(path, settings.Env, expectedURL)
+					conflicts += checkClaudeEnv(path, settings.Env, expectedURL, cfg.AnthropicFirst.Enabled)
 				}
 			}
 
@@ -379,7 +388,7 @@ func checkCmd() *cobra.Command {
 
 // checkClaudeEnv checks a single environment map for conflicting Claude Code settings.
 // Returns the number of conflicts found.
-func checkClaudeEnv(source string, env map[string]string, expectedURL string) int {
+func checkClaudeEnv(source string, env map[string]string, expectedURL string, anthropicFirst bool) int {
 	conflicts := 0
 	if value, ok := env["ANTHROPIC_BASE_URL"]; ok {
 		normalized := strings.TrimRight(value, "/")
@@ -393,11 +402,14 @@ func checkClaudeEnv(source string, env map[string]string, expectedURL string) in
 		conflicts++
 	}
 	if value, ok := env["ANTHROPIC_AUTH_TOKEN"]; ok {
-		if value != "unused" {
+		if anthropicFirst {
+			fmt.Printf("%s: ANTHROPIC_AUTH_TOKEN is set; unset it to keep the saved Claude subscription login active\n", source)
+			conflicts++
+		} else if value != "unused" {
 			fmt.Printf("%s: ANTHROPIC_AUTH_TOKEN is %q, expected \"unused\"\n", source, value)
 			conflicts++
 		}
-	} else {
+	} else if !anthropicFirst {
 		fmt.Printf("%s: ANTHROPIC_AUTH_TOKEN is not set (recommended: \"unused\")\n", source)
 	}
 	return conflicts
@@ -433,7 +445,6 @@ func modelsCmd() *cobra.Command {
 			fmt.Println()
 			fmt.Println("Available OpenCode Zen models (free tier):")
 			fmt.Println()
-			fmt.Println("  deepseek-v4-pro            OpenAI-compatible")
 			fmt.Println("  deepseek-v4-flash-free     OpenAI-compatible")
 			fmt.Println("  grok-build-0.1             OpenAI-compatible")
 			fmt.Println("  big-pickle                 OpenAI-compatible")
@@ -564,42 +575,50 @@ func getDefaultConfig() string {
   "port": 3456,
   "hot_reload": false,
   "enable_streaming_scenario_routing": false,
-  "respect_requested_model": true,
+  "respect_requested_model": false,
+  "anthropic_first": {
+    "enabled": false,
+    "base_url": "https://api.anthropic.com"
+  },
   "models": {
     "background": {
       "provider": "opencode-go",
-      "model_id": "qwen3.5-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.5,
       "max_tokens": 2048
     },
     "default": {
       "provider": "opencode-go",
-      "model_id": "kimi-k2.6",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "long_context": {
       "provider": "opencode-go",
-      "model_id": "minimax-m2.5",
+      "model_id": "minimax-m3",
       "temperature": 0.7,
       "max_tokens": 16384,
       "context_threshold": 80000
     },
     "think": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "glm-5.2",
       "temperature": 0.7,
       "max_tokens": 8192
     },
     "complex": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "fast": {
       "provider": "opencode-go",
-      "model_id": "qwen3.6-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.7,
       "max_tokens": 4096
     },
@@ -630,28 +649,46 @@ func getDefaultConfig() string {
   },
   "fallbacks": {
     "background": [
-      { "provider": "opencode-go", "model_id": "qwen3.6-plus" },
-      { "provider": "opencode-go", "model_id": "minimax-m2.5" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "default": [
-      { "provider": "opencode-go", "model_id": "mimo-v2.5-pro" },
-      { "provider": "opencode-go", "model_id": "qwen3.6-plus" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "long_context": [
-      { "provider": "opencode-go", "model_id": "minimax-m2.7" },
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "think": [
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" },
-      { "provider": "opencode-go", "model_id": "mimo-v2.5-pro" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "complex": [
-      { "provider": "opencode-go", "model_id": "glm-5.1" },
-      { "provider": "opencode-go", "model_id": "kimi-k2.6" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "fast": [
-      { "provider": "opencode-go", "model_id": "qwen3.5-plus" },
-      { "provider": "opencode-go", "model_id": "minimax-m2.5" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
     "glm-5.2": [
       { "provider": "opencode-go", "model_id": "glm-5.1" },
@@ -775,7 +812,7 @@ func getDefaultConfig() string {
   "opencode_go": {
     "base_url": "https://opencode.ai/zen/go/v1/chat/completions",
     "anthropic_base_url": "https://opencode.ai/zen/go/v1/messages",
-    "api_key": "${ROUTATIC_PROXY_OPENCODE_GO_API_KEY}",
+    "api_key": "",
     "api_keys": [],
     "timeout_ms": 300000
   },
@@ -784,7 +821,7 @@ func getDefaultConfig() string {
     "anthropic_base_url": "https://opencode.ai/zen/v1/messages",
     "responses_base_url": "https://opencode.ai/zen/v1/responses",
     "gemini_base_url": "https://opencode.ai/zen/v1/models",
-    "api_key": "${ROUTATIC_PROXY_OPENCODE_ZEN_API_KEY}",
+    "api_key": "",
     "api_keys": [],
     "timeout_ms": 300000
   },

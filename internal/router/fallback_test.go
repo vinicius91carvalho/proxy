@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,6 +258,48 @@ func TestExecuteWithFallback_PerModelTimeoutFallback(t *testing.T) {
 	}
 	if string(body) != "success-model-b" {
 		t.Errorf("body = %s, want success-model-b", string(body))
+	}
+}
+
+func TestExecuteWithFallback_UsageLimitSkipsProvider(t *testing.T) {
+	h := NewFallbackHandler(nil, 3, time.Minute)
+	models := []config.ModelConfig{
+		{Provider: "opencode-go", ModelID: "deepseek-v4-pro"},
+		{Provider: "opencode-go", ModelID: "qwen3.7-plus"},
+		{Provider: "opencode-zen", ModelID: "nemotron-3-ultra-free"},
+	}
+	var attempted []string
+	result, body, err := h.ExecuteWithFallback(context.Background(), models, func(_ context.Context, model config.ModelConfig) ([]byte, error) {
+		attempted = append(attempted, model.ModelID)
+		if model.Provider == "opencode-go" {
+			return nil, &client.APIError{StatusCode: 429, Body: `{"type":"GoUsageLimitError"}`}
+		}
+		return []byte("zen-success"), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ModelID != "nemotron-3-ultra-free" || string(body) != "zen-success" {
+		t.Fatalf("result=%+v body=%q", result, body)
+	}
+	if strings.Join(attempted, ",") != "deepseek-v4-pro,nemotron-3-ultra-free" {
+		t.Fatalf("attempted=%v; remaining Go models should be skipped", attempted)
+	}
+}
+
+func TestExecuteWithFallback_UsageLimitWithoutAlternateProviderIsPreserved(t *testing.T) {
+	h := NewFallbackHandler(nil, 3, time.Minute)
+	models := []config.ModelConfig{
+		{Provider: "opencode-go", ModelID: "a"},
+		{Provider: "opencode-go", ModelID: "b"},
+	}
+	calls := 0
+	_, _, err := h.ExecuteWithFallback(context.Background(), models, func(_ context.Context, _ config.ModelConfig) ([]byte, error) {
+		calls++
+		return nil, &client.APIError{StatusCode: 429, Body: `{"type":"GoUsageLimitError"}`}
+	})
+	if !IsUsageLimitError(err) || calls != 1 {
+		t.Fatalf("err=%v calls=%d", err, calls)
 	}
 }
 

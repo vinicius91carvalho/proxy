@@ -175,6 +175,8 @@ func (h *FallbackHandler) ExecuteWithFallback(
 	executor func(context.Context, config.ModelConfig) ([]byte, error),
 ) (*FallbackResult, []byte, error) {
 	totalModels := len(models)
+	blockedProviders := make(map[string]bool)
+	var usageLimitErr error
 
 	for i, model := range models {
 		if err := ctx.Err(); err != nil {
@@ -182,6 +184,12 @@ func (h *FallbackHandler) ExecuteWithFallback(
 				"error", err,
 			)
 			return nil, nil, err
+		}
+
+		provider := client.Provider(model)
+		if blockedProviders[provider] {
+			h.logger.Info("provider usage limit reached, skipping model", "provider", provider, "model", model.ModelID)
+			continue
 		}
 
 		cb := h.getCircuitBreaker(model.ModelID)
@@ -225,15 +233,17 @@ func (h *FallbackHandler) ExecuteWithFallback(
 			return nil, nil, errCtx
 		}
 
-		// Usage limit errors should be passed directly to the client instead
-		// of triggering a fallback, as fallback attempts will also encounter
-		// the same usage limit error within a short period.
+		// A provider-wide usage limit makes its remaining models pointless.
+		// Skip them, but continue if the chain includes another provider.
 		if IsUsageLimitError(err) {
-			h.logger.Warn("usage limit error encountered, passing directly to client",
+			usageLimitErr = err
+			blockedProviders[provider] = true
+			h.logger.Warn("provider usage limit reached, trying another provider",
+				"provider", provider,
 				"model", model.ModelID,
 				"error", err,
 			)
-			return nil, nil, err
+			continue
 		}
 
 		if IsRetryableError(err) {
@@ -251,6 +261,15 @@ func (h *FallbackHandler) ExecuteWithFallback(
 				"remaining", totalModels-i-1,
 			)
 		}
+	}
+
+	if usageLimitErr != nil {
+		return &FallbackResult{
+			ModelID:     models[0].ModelID,
+			Success:     false,
+			Attempted:   totalModels,
+			TotalModels: totalModels,
+		}, nil, usageLimitErr
 	}
 
 	return &FallbackResult{

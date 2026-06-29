@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,6 +20,7 @@ const (
 	defaultAnthropicBaseURL = "https://opencode.ai/zen/go/v1/messages"
 	defaultTimeoutMs        = 300000
 	defaultLogLevel         = "info"
+	defaultAnthropicAPIURL  = "https://api.anthropic.com"
 
 	defaultZenBaseURL          = "https://opencode.ai/zen/v1/chat/completions"
 	defaultZenAnthropicBaseURL = "https://opencode.ai/zen/v1/messages"
@@ -230,6 +232,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.Port == 0 {
 		cfg.Port = defaultPort
 	}
+	if cfg.AnthropicFirst.BaseURL == "" {
+		cfg.AnthropicFirst.BaseURL = defaultAnthropicAPIURL
+	}
 	if cfg.OpenCodeGo.BaseURL == "" {
 		cfg.OpenCodeGo.BaseURL = defaultBaseURL
 	}
@@ -283,6 +288,12 @@ func applyDefaults(cfg *Config) {
 func validate(cfg *Config) error {
 	if cfg.APIKey == "" && len(cfg.APIKeys) == 0 {
 		return fmt.Errorf("api_key or api_keys is required (set via config file or ROUTATIC_PROXY_API_KEY env var; OC_GO_CC_API_KEY is still supported)")
+	}
+	if cfg.AnthropicFirst.Enabled {
+		u, err := url.Parse(cfg.AnthropicFirst.BaseURL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return fmt.Errorf("anthropic_first.base_url must be an absolute http or https URL")
+		}
 	}
 
 	if err := validateAPIKeys(cfg.APIKeys); err != nil {

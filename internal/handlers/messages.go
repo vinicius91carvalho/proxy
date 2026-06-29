@@ -502,6 +502,7 @@ func (h *MessagesHandler) handleStreaming(
 	defer heartbeatCancel()
 
 	streamStart := time.Now()
+	blockedProviders := make(map[string]bool)
 
 	for _, model := range modelChain {
 		select {
@@ -509,6 +510,11 @@ func (h *MessagesHandler) handleStreaming(
 			h.logger.Debug("client disconnected, stopping streaming fallbacks")
 			return
 		default:
+		}
+		providerName := client.Provider(model)
+		if blockedProviders[providerName] {
+			h.logger.Info("provider usage limit reached, skipping streaming model", "provider", providerName, "model", model.ModelID)
+			continue
 		}
 
 		h.logger.Info("attempting streaming model", "model", model.ModelID, "provider", model.Provider)
@@ -592,6 +598,9 @@ func (h *MessagesHandler) handleStreaming(
 					if clientCtx.Err() != nil {
 						h.logger.Debug("client disconnected during upstream request")
 						return
+					}
+					if router.IsUsageLimitError(err) {
+						blockedProviders[providerName] = true
 					}
 					h.logger.Warn("streaming request failed via provider", "model", model.ModelID, "provider", model.Provider, "error", err)
 					continue

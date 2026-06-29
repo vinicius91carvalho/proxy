@@ -60,6 +60,8 @@ func (p *OpenCodeZenProvider) ModelCapabilities(modelID string) (core.ProviderCa
 		caps.MaxContextLength = 1_000_000
 	case strings.HasPrefix(modelID, "deepseek-"):
 		caps.MaxContextLength = 1_000_000
+	case strings.HasPrefix(modelID, "qwen"):
+		caps.MaxContextLength = 1_000_000
 	}
 	return caps, true
 }

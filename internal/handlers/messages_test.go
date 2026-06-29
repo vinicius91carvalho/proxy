@@ -356,6 +356,87 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
+type usageLimitStreamProvider struct {
+	name  string
+	calls *int
+	err   error
+	body  string
+}
+
+func (p *usageLimitStreamProvider) Name() string { return p.name }
+func (p *usageLimitStreamProvider) Capabilities() core.ProviderCapabilities {
+	return core.ProviderCapabilities{SupportsStreaming: true, SupportsTools: true}
+}
+func (p *usageLimitStreamProvider) ModelCapabilities(string) (core.ProviderCapabilities, bool) {
+	return p.Capabilities(), true
+}
+func (p *usageLimitStreamProvider) WireFormat(string) core.WireFormat {
+	return core.WireFormatAnthropic
+}
+func (p *usageLimitStreamProvider) Execute(context.Context, *core.NormalizedRequest, config.ModelConfig) (*core.ExecuteResult, error) {
+	return nil, p.err
+}
+func (p *usageLimitStreamProvider) Stream(context.Context, *core.NormalizedRequest, config.ModelConfig) (io.ReadCloser, error) {
+	*p.calls++
+	if p.err != nil {
+		return nil, p.err
+	}
+	return io.NopCloser(strings.NewReader(p.body)), nil
+}
+func (p *usageLimitStreamProvider) RoundTripName(model config.ModelConfig) string {
+	return model.ModelID
+}
+func (p *usageLimitStreamProvider) StreamIdleTimeout(config.ModelConfig) time.Duration {
+	return time.Minute
+}
+
+func TestHandleStreaming_UsageLimitSkipsRemainingProviderModels(t *testing.T) {
+	cfg := &config.Config{
+		OpenCodeGo:  config.OpenCodeGoConfig{TimeoutMs: 5000, StreamTimeoutMs: 5000},
+		OpenCodeZen: config.OpenCodeZenConfig{TimeoutMs: 5000, StreamTimeoutMs: 5000},
+	}
+	atomicCfg := config.NewAtomicConfig(cfg, "/tmp/test-config.json")
+	registry := core.NewProviderRegistry()
+	goCalls, zenCalls := 0, 0
+	_ = registry.Register(&usageLimitStreamProvider{
+		name: "opencode-go", calls: &goCalls,
+		err: &client.APIError{StatusCode: 429, Body: `{"type":"GoUsageLimitError"}`},
+	})
+	_ = registry.Register(&usageLimitStreamProvider{
+		name: "opencode-zen", calls: &zenCalls,
+		body: "event: message_start\ndata: {}\n\nevent: message_stop\ndata: {}\n\n",
+	})
+	h := &MessagesHandler{
+		client:           client.NewOpenCodeClient(atomicCfg, nil),
+		providerRegistry: registry,
+		streamProxy:      NewStreamProxy(),
+		logger:           slog.Default(),
+		metrics:          metrics.New(),
+	}
+	stream := true
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	rec := httptest.NewRecorder()
+	h.handleStreaming(
+		rec,
+		req,
+		&types.MessageRequest{Stream: &stream},
+		&core.NormalizedRequest{Stream: true},
+		[]config.ModelConfig{
+			{Provider: "opencode-go", ModelID: "deepseek-v4-pro"},
+			{Provider: "opencode-go", ModelID: "qwen3.7-plus"},
+			{Provider: "opencode-zen", ModelID: "nemotron-3-ultra-free"},
+		},
+		nil,
+		router.ScenarioDefault,
+	)
+	if goCalls != 1 || zenCalls != 1 {
+		t.Fatalf("goCalls=%d zenCalls=%d; want 1 each", goCalls, zenCalls)
+	}
+	if !strings.Contains(rec.Body.String(), "message_stop") {
+		t.Fatalf("Zen stream not returned: %q", rec.Body.String())
+	}
+}
+
 func TestSanitizeAnthropicBody_RemovesToolTypeField(t *testing.T) {
 	rawBody := json.RawMessage(`{
 		"model": "minimax-m3",

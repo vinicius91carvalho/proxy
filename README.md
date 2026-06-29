@@ -44,6 +44,7 @@ OpenCode Go gives you access to powerful open coding models for **$5/month** (th
 - **Model Routing** — Automatically routes to different models based on context (default, thinking, long context, background)
 - **Streaming Scenario Routing** — Configurable routing for streaming requests; enables proper scenario selection for Claude Code multi-agent and review workflows (see [CONFIGURATION.md](CONFIGURATION.md#streaming-scenario-routing))
 - **Fallback Chains** — If a model fails, automatically tries the next one in your configured chain
+- **Anthropic-First Failover** — Keep Claude on Anthropic and use OpenCode only during rate limits or outages
 - **Circuit Breaker** — Tracks model health and skips failing models to avoid latency spikes
 - **Real-time Streaming** — Full SSE streaming with live format transformation
 - **Tool Calling** — Proper Anthropic tool_use/tool_result <-> OpenAI/Gemini function calling translation
@@ -74,7 +75,7 @@ Zen provides pay-as-you-go access to additional models:
 - **Claude Models**: Claude Fable 5, Claude Opus 4.8/4.6/4.5/4.1, Claude Sonnet 4
 - **Gemini Models**: Gemini 3.5 Flash, Gemini 3.1 Pro, Gemini 3 Flash
 - **GPT Models**: GPT 5.5, GPT 5.4, GPT 5.3 Codex, and more
-- **Free Tier**: DeepSeek V4 Pro, Grok Build 0.1, Big Pickle, and others
+- **Free Tier**: Nemotron 3 Ultra Free, MiMo V2.5 Free, DeepSeek V4 Flash Free, and others
 
 See [MODELS.md](MODELS.md#opencodes-zen) for the full Zen model list.
 
@@ -144,10 +145,21 @@ make docker-stop
 
 ### 4. Configure Claude Code
 
+For the default OpenCode-only mode:
+
 ```bash
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 export ANTHROPIC_AUTH_TOKEN=unused
 ```
+
+For Anthropic-first mode, enable `anthropic_first` in the proxy config and set only the base URL. Do not set an API key or auth token: Claude Code will keep using its saved Claude subscription login.
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+```
+
+Anthropic-first mode falls back on HTTP 408, 429, 5xx, and connection failures. It honors `Retry-After` and uses one real request to detect recovery, so it does not spend tokens on health checks. See [CONFIGURATION.md](CONFIGURATION.md#anthropic-first-failover).
 
 ### 5. Run Claude Code
 

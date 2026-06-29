@@ -90,7 +90,7 @@ func NewServer(atomic *config.AtomicConfig, captureLogger *debug.CaptureLogger) 
 	mux := http.NewServeMux()
 
 	// API routes.
-	mux.HandleFunc("/v1/messages", messagesHandler.HandleMessages)
+	mux.Handle("/v1/messages", handlers.NewAnthropicFirstHandler(atomic, http.HandlerFunc(messagesHandler.HandleMessages)))
 	mux.HandleFunc("/v1/messages/count_tokens", healthHandler.HandleCountTokens)
 	mux.HandleFunc("/health", healthHandler.HandleHealth)
 	mux.HandleFunc("/statusline", healthHandler.HandleStatusline)

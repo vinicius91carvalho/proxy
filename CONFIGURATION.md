@@ -16,42 +16,50 @@ For migration, `~/.config/oc-go-cc/config.json` is loaded when the new config fi
   "host": "127.0.0.1",
   "port": 3456,
   "hot_reload": false,
+  "anthropic_first": {
+    "enabled": false,
+    "base_url": "https://api.anthropic.com"
+  },
 
   "models": {
     "default": {
       "provider": "opencode-go",
-      "model_id": "kimi-k2.6",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "background": {
       "provider": "opencode-go",
-      "model_id": "qwen3.5-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.5,
       "max_tokens": 2048
     },
     "think": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "glm-5.2",
       "temperature": 0.7,
       "max_tokens": 8192
     },
     "complex": {
       "provider": "opencode-go",
-      "model_id": "glm-5.1",
+      "model_id": "deepseek-v4-pro",
       "temperature": 0.7,
-      "max_tokens": 4096
+      "max_tokens": 8192,
+      "reasoning_effort": "max",
+      "thinking": { "type": "enabled" }
     },
     "long_context": {
       "provider": "opencode-go",
-      "model_id": "minimax-m2.7",
+      "model_id": "minimax-m3",
       "temperature": 0.7,
       "max_tokens": 16384,
       "context_threshold": 80000
     },
     "fast": {
       "provider": "opencode-go",
-      "model_id": "qwen3.6-plus",
+      "model_id": "deepseek-v4-flash",
       "temperature": 0.7,
       "max_tokens": 4096
     }
@@ -59,13 +67,16 @@ For migration, `~/.config/oc-go-cc/config.json` is loaded when the new config fi
 
   "fallbacks": {
     "default": [
-      { "provider": "opencode-go", "model_id": "glm-5" },
-      { "provider": "opencode-go", "model_id": "qwen3.6-plus" }
+      { "provider": "opencode-go", "model_id": "qwen3.7-plus" },
+      { "provider": "opencode-go", "model_id": "qwen3.7-max" },
+      { "provider": "opencode-zen", "model_id": "nemotron-3-ultra-free" },
+      { "provider": "opencode-zen", "model_id": "mimo-v2.5-free" },
+      { "provider": "opencode-zen", "model_id": "deepseek-v4-flash-free" }
     ],
-    "think": [{ "provider": "opencode-go", "model_id": "glm-5" }],
-    "complex": [{ "provider": "opencode-go", "model_id": "glm-5" }],
-    "long_context": [{ "provider": "opencode-go", "model_id": "minimax-m2.5" }],
-    "fast": [{ "provider": "opencode-go", "model_id": "qwen3.5-plus" }]
+    "think": [{ "provider": "opencode-go", "model_id": "qwen3.7-plus" }],
+    "complex": [{ "provider": "opencode-go", "model_id": "qwen3.7-plus" }],
+    "long_context": [{ "provider": "opencode-go", "model_id": "qwen3.7-plus" }],
+    "fast": [{ "provider": "opencode-go", "model_id": "qwen3.7-plus" }]
   },
 
   "model_overrides": {
@@ -114,6 +125,34 @@ For migration, `~/.config/oc-go-cc/config.json` is loaded when the new config fi
   }
 }
 ```
+
+## Anthropic-First Failover
+
+Enable this mode to keep Anthropic as Claude Code's primary API and use the configured OpenCode model chain only while Anthropic is unavailable:
+
+```json
+{
+  "anthropic_first": {
+    "enabled": true,
+    "base_url": "https://api.anthropic.com"
+  }
+}
+```
+
+Configure Claude Code with only the proxy address:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+unset ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+```
+
+Leaving the credential variables unset preserves the saved Claude Pro, Max, Team, or Enterprise login. The proxy forwards the raw request, OAuth credential, `anthropic-version`, and complete `anthropic-beta` capability header to Anthropic.
+
+Fallback occurs for HTTP 408, 429, 5xx, and transport failures before a response starts. HTTP 400, 401, 403, 404, and other request errors are returned unchanged. After a failure, the proxy honors `Retry-After`; otherwise it uses exponential backoff from 30 seconds to 15 minutes. One real user request probes recovery while concurrent requests continue through OpenCode. No synthetic health requests are sent.
+
+Once response bytes have started, a failed stream cannot be restarted on another model without duplicating content. `/v1/messages/count_tokens` remains local and does not affect availability state.
+
+When OpenCode Go returns `GoUsageLimitError`, remaining Go models are skipped for that request and the chain advances to Zen. The default chain uses Qwen3.7 Plus, Qwen3.7 Max, then the currently working Zen-free Nemotron 3 Ultra, MiMo V2.5, and DeepSeek V4 Flash models. Free Zen endpoints are time-limited and may retain data under [OpenCode's documented privacy terms](https://opencode.ai/docs/zen/#privacy).
 
 ## Providers
 
