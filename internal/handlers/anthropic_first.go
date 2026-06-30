@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -117,14 +118,18 @@ func (g *availabilityGate) resetLocked(baseURL string) {
 
 func parseRetryAfter(value string, now time.Time) (time.Duration, bool) {
 	if seconds, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && seconds >= 0 {
-		return time.Duration(seconds) * time.Second, true
+		delay := time.Duration(seconds) * time.Second
+		if delay < time.Second {
+			delay = time.Second
+		}
+		return delay, true
 	}
 	when, err := http.ParseTime(value)
 	if err != nil {
 		return 0, false
 	}
 	if when.Before(now) {
-		return 0, true
+		return time.Second, true
 	}
 	return when.Sub(now), true
 }
@@ -208,7 +213,7 @@ func (h *AnthropicFirstHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	h.logger.Debug("Anthropic request succeeded", "status", resp.StatusCode)
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	copyStreamingResponse(w, resp.Body)
+	copyStreamingResponse(r.Context(), w, resp.Body)
 }
 
 func newAnthropicRequest(in *http.Request, baseURL string, body []byte) (*http.Request, error) {
@@ -239,8 +244,9 @@ func (h *AnthropicFirstHandler) serveFallback(w http.ResponseWriter, r *http.Req
 }
 
 func copyHeader(dst, src http.Header) {
-	removeHopHeaders(src)
-	for key, values := range src {
+	dstClone := src.Clone()
+	removeHopHeaders(dstClone)
+	for key, values := range dstClone {
 		dst[key] = append([]string(nil), values...)
 	}
 }
@@ -259,9 +265,23 @@ func removeHopHeaders(header http.Header) {
 	}
 }
 
-func copyStreamingResponse(w http.ResponseWriter, body io.Reader) {
-	buf := make([]byte, 32<<10)
+var streamBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 32<<10)
+		return &b
+	},
+}
+
+func copyStreamingResponse(ctx context.Context, w http.ResponseWriter, body io.Reader) {
+	bufPtr := streamBufPool.Get().(*[]byte)
+	defer streamBufPool.Put(bufPtr)
+	buf := *bufPtr
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		n, err := body.Read(buf)
 		if n > 0 {
 			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
