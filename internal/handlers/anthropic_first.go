@@ -118,18 +118,14 @@ func (g *availabilityGate) resetLocked(baseURL string) {
 
 func parseRetryAfter(value string, now time.Time) (time.Duration, bool) {
 	if seconds, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && seconds >= 0 {
-		delay := time.Duration(seconds) * time.Second
-		if delay < time.Second {
-			delay = time.Second
-		}
-		return delay, true
+		return time.Duration(seconds) * time.Second, true
 	}
 	when, err := http.ParseTime(value)
 	if err != nil {
 		return 0, false
 	}
 	if when.Before(now) {
-		return time.Second, true
+		return 0, true
 	}
 	return when.Sub(now), true
 }

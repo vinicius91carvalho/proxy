@@ -202,9 +202,8 @@ func TestAvailabilityGateConcurrentProbe(t *testing.T) {
 	attempt, _ := gate.allow(now, "upstream")
 	gate.failed(now, attempt, "0")
 
-	// After failed("0"), the gate is unavailable with nextProbe = now + 1s (minimum floor).
-	// Wait until the probe window opens.
-	probeTime := now.Add(1100 * time.Millisecond)
+	// Retry-After: 0 means the probe window opens immediately.
+	probeTime := now.Add(50 * time.Millisecond)
 
 	var allowed atomic.Int32
 	var wg sync.WaitGroup
